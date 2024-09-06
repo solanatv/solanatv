@@ -1,4 +1,4 @@
-name: build
+name: Build and Release
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: set up JDK 21
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -41,113 +41,46 @@ jobs:
           prerelease: false
           body_path: history.md
 
-      - name: Run build with Gradle wrapper
-        run: ./gradlew clean && ./gradlew assembleRelease
-
-      - name: Sign app APK
-        id: sign_app
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          alias: ${{ secrets.ALIAS }}
-          signingKeyBase64: ${{ secrets.KEYSTORE }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ALIAS_PASSWORD }}
-        env:
-          # override default build-tools version (29.0.3) -- optional
-          BUILD_TOOLS_VERSION: "34.0.0"
-
-      - name: Set Asset Name
-        id: set_asset_name
+      - name: Build, Sign and Upload APKs
         run: |
-          VERSION_WITHOUT_V=$(echo '${{ github.ref_name }}' | sed 's/^v//')
-          echo "asset_name=my-tv-0.${VERSION_WITHOUT_V}.apk" >> $GITHUB_ENV
+          for variant in '' 'mobile' 'ipv6'; do
+            ./gradlew clean && ./gradlew assembleRelease -Pnet=$variant
+            apk_file="app/build/outputs/apk/release/app-release-unsigned.apk"
+            if [ "$variant" == "mobile" ]; then
+              apk_file="app/build/outputs/apk/release/app-release-unsigned-mobile.apk"
+            elif [ "$variant" == "ipv6" ]; then
+              apk_file="app/build/outputs/apk/release/app-release-unsigned-ipv6.apk"
+            fi
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAGE_ACTION_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.sign_app.outputs.signedReleaseFile }}
-          asset_name: ${{ env.asset_name }}
-          asset_content_type: application/vnd.android.package-archive
+            # Sign APK
+            signed_apk="app/build/outputs/apk/release/app-release-unsigned-signed.apk"
+            if [ "$variant" == "mobile" ]; then
+              signed_apk="app/build/outputs/apk/release/app-release-unsigned-signed-mobile.apk"
+            elif [ "$variant" == "ipv6" ]; then
+              signed_apk="app/build/outputs/apk/release/app-release-unsigned-signed-ipv6.apk"
+            fi
+            
+            # Sign APK
+            echo "Signing $apk_file"
+            /usr/local/lib/android/sdk/build-tools/34.0.0/apksigner sign \
+              --ks app/build/outputs/apk/release/signingKey.jks \
+              --ks-key-alias ${{ secrets.ALIAS }} \
+              --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+              --key-pass pass:${{ secrets.ALIAS_PASSWORD }} \
+              --out $signed_apk \
+              $apk_file
 
-      - name: Run build with Gradle wrapper mobile
-        run: ./gradlew clean && ./gradlew assembleRelease -Pnet=mobile
-
-      - name: Sign app APK mobile
-        id: sign_app_mobile
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          alias: ${{ secrets.ALIAS }}
-          signingKeyBase64: ${{ secrets.KEYSTORE }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ALIAS_PASSWORD }}
-        env:
-          # override default build-tools version (29.0.3) -- optional
-          BUILD_TOOLS_VERSION: "34.0.0"
-
-      - name: Set Asset Name mobile
-        id: set_asset_name_mobile
-        run: |
-          VERSION_WITHOUT_V=$(echo '${{ github.ref_name }}' | sed 's/^v//')
-          echo "asset_name=my-tv-0.${VERSION_WITHOUT_V}.china-mobile.apk" >> $GITHUB_ENV
-
-      - name: Upload Release Asset mobile
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAGE_ACTION_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.sign_app_mobile.outputs.signedReleaseFile }}
-          asset_name: ${{ env.asset_name }}
-          asset_content_type: application/vnd.android.package-archive
-
-      - name: Run build with Gradle wrapper ipv6
-        run: ./gradlew clean && ./gradlew assembleRelease -Pnet=ipv6
-
-      - name: Sign app APK ipv6
-        id: sign_app_ipv6
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          alias: ${{ secrets.ALIAS }}
-          signingKeyBase64: ${{ secrets.KEYSTORE }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ALIAS_PASSWORD }}
-        env:
-          # override default build-tools version (29.0.3) -- optional
-          BUILD_TOOLS_VERSION: "34.0.0"
-
-      - name: Set Asset Name ipv6
-        id: set_asset_name_ipv6
-        run: |
-          VERSION_WITHOUT_V=$(echo '${{ github.ref_name }}' | sed 's/^v//')
-          echo "asset_name=my-tv-0.${VERSION_WITHOUT_V}.ipv6.apk" >> $GITHUB_ENV
-
-      - name: Upload Release Asset ipv6
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAGE_ACTION_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.sign_app_ipv6.outputs.signedReleaseFile }}
-          asset_name: ${{ env.asset_name }}
-          asset_content_type: application/vnd.android.package-archive
-
-#      - name: Gitee Create Release
-#        run: |
-#          latest_commit=$(git rev-parse HEAD)
-#          history=$(cat history.md)
-#          curl -v POST https://gitee.com/api/v5/repos/${{ github.repository }}/releases \
-#          -H "Content-Type: application/json" \
-#          -d '{
-#            "access_token": "${{ secrets.GITEE_ACCESS_TOKEN}}",
-#            "tag_name": "${{ github.ref_name }}",
-#            "name": "Release ${{ github.ref_name }}",
-#            "body": "'"$history"'",
-#            "prerelease": false,
-#            "target_commitish": "'"$latest_commit"'"
-#          }'
+            # Set asset name and upload
+            VERSION_WITHOUT_V=$(echo '${{ github.ref_name }}' | sed 's/^v//')
+            asset_name="my-tv-0.${VERSION_WITHOUT_V}.apk"
+            if [ "$variant" == "mobile" ]; then
+              asset_name="my-tv-0.${VERSION_WITHOUT_V}.china-mobile.apk"
+            elif [ "$variant" == "ipv6" ]; then
+              asset_name="my-tv-0.${VERSION_WITHOUT_V}.ipv6.apk"
+            fi
+            echo "Uploading $signed_apk as $asset_name"
+            curl -H "Authorization: token ${{ secrets.GH_PAGE_ACTION_TOKEN }}" \
+                 -H "Content-Type: application/octet-stream" \
+                 --data-binary @"$signed_apk" \
+                 "${{ steps.create_release.outputs.upload_url }}?name=$asset_name"
+          done
