@@ -1,0 +1,49 @@
+name: Issue Feedback
+description: Errors or unreasonable features encountered during use
+labels: [ "bug" ]
+title: "[BUG] "
+body:
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Please check before reporting the issue
+      description: Confirm the issue still exists
+      options:
+        - label: I have checked the issue list, and no one has reported the same issue
+          required: true
+        - label: The issue has not been fixed in the latest version of the software
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Software Version
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: TV Brand
+    validations:
+      required: true
+
+  - type: input
+    id: android
+    attributes:
+      label: Android Version
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug
+    attributes:
+      label: Issue Description
+      description: Please describe the details of the issue
+      placeholder: |
+        1. Error behavior
+        2. How to reproduce it
+        3. Suggestions or thoughts
+    validations:
+      required: true
+

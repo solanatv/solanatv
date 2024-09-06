@@ -1,0 +1,24 @@
+name: Feature Request
+description: A new feature request or suggestion
+labels: [ "enhancement" ]
+title: "[FR] "
+body:
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Please check before submitting a request
+      description: Confirm that the new feature has not been requested yet
+      options:
+        - label: I have checked the request list, and no one has proposed the same feature
+          required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Feature Request
+      description: The request should be specific and singular; please avoid vague requests such as “optimize the interface” or “improve stability”
+      placeholder: |
+        1. Feature requirements
+        2. Implementation plan
+    validations:
+      required: true
